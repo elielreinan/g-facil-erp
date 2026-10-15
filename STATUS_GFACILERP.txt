@@ -4,7 +4,7 @@ STATUS DE DESENVOLVIMENTO
 
 ULTIMA ATUALIZACAO
 ------------------
-15/10/2026
+15/10/2026 - 01:13
 
 OBJETIVO DO APLICATIVO
 ----------------------
@@ -58,6 +58,14 @@ CONCLUIDO
 
 PENDENCIAS PRIORITARIAS
 -----------------------
+- Criar o projeto Supabase próprio do GFacilERP, separado do projeto do
+  FacilERP. Esse projeto será obrigatório para Auth, administradores,
+  usuários gerenciados e auditoria.
+- Executar supabase/schema.sql no projeto Supabase do GFacilERP.
+- Configurar GFacilERP/.env.local com NEXT_PUBLIC_SUPABASE_URL e
+  NEXT_PUBLIC_SUPABASE_ANON_KEY do projeto próprio, sem versionar o arquivo.
+- Criar o primeiro usuário administrador no Auth e inserir seu perfil em
+  public.administradores.
 - Criar Edge Functions ou API server-side para:
   - criar usuario no Supabase Auth;
   - aprovar usuario;
@@ -108,6 +116,8 @@ FACILERP:
 
 HISTORICO DE MUDANCAS
 ---------------------
+- 15/10/2026 - Registrada a necessidade de criar um projeto Supabase
+  exclusivo para o GFacilERP e configurá-lo antes dos testes reais.
 - 15/10/2026 - Criado este arquivo para registrar objetivos, mudancas,
   pendencias, regras de seguranca e a importancia do GFacilERP para o
   FacilERP.
