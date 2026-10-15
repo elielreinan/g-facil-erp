@@ -101,6 +101,26 @@ REGRAS DE SEGURANCA
 - O banco deve iniciar vazio e a interface deve mostrar somente registros
   realmente persistidos.
 
+ATUALIZACAO E INTEGRACAO FUTURA
+-------------------------------
+- O GFacilERP deve ser facil de atualizar, com versoes semanticas, changelog,
+  builds reproduziveis e migrations do banco versionadas.
+- A atualizacao nao pode apagar usuarios, auditorias, configuracoes ou dados
+  administrativos existentes.
+- Mudancas de schema devem ser compativeis com a versao anterior durante a
+  migracao, com backup e plano de rollback.
+- A integracao com o FacilERP e sistemas futuros deve usar API versionada,
+  Edge Functions, webhooks ou filas, nunca acesso direto ao banco por terceiros.
+- Cada integracao deve usar autenticacao forte, escopos minimos, rate limit,
+  idempotencia, logs e tratamento explicito de falhas.
+- Contratos de integracao devem ser documentados antes de serem consumidos.
+- Adaptadores isolados devem permitir conexao futura com contabilidade, compras,
+  RH, identidade corporativa ou outros servicos.
+- Variaveis de ambiente, endpoints e chaves devem ser separados por ambiente.
+- Atualizacoes do aplicativo Windows devem preservar dados locais e permitir
+  retorno seguro para uma versao anterior quando necessario.
+- Toda mudanca relevante deve ser registrada neste arquivo e no repositorio.
+
 RELACAO DE RESPONSABILIDADES
 ----------------------------
 GFACILERP:
@@ -116,6 +136,8 @@ FACILERP:
 
 HISTORICO DE MUDANCAS
 ---------------------
+- 15/10/2026 - Adicionada diretriz para atualizacoes simples, migrations
+  controladas e integracao futura por APIs versionadas e servicos isolados.
 - 15/10/2026 - Registrada a necessidade de criar um projeto Supabase
   exclusivo para o GFacilERP e configurá-lo antes dos testes reais.
 - 15/10/2026 - Criado este arquivo para registrar objetivos, mudancas,
