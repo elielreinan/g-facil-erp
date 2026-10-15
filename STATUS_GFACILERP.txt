@@ -1,0 +1,113 @@
+GFACILERP
+STATUS DE DESENVOLVIMENTO
+==========================
+
+ULTIMA ATUALIZACAO
+------------------
+15/10/2026
+
+OBJETIVO DO APLICATIVO
+----------------------
+- Administrar as contas que podem acessar o FacilERP.
+- Permitir que administradores aprovem, bloqueiem e acompanhem usuarios.
+- Delegar setores e, futuramente, permissoes conforme a responsabilidade de
+  cada pessoa.
+- Centralizar auditoria das operacoes administrativas.
+- Manter as credenciais, regras de acesso e dados administrativos separados
+  do banco operacional do FacilERP.
+
+IMPORTANCIA PARA O FACILERP
+---------------------------
+O FacilERP e o sistema operacional da empresa: registra insumos, compras,
+fornecedores, orcamentos, notas fiscais, patrimonio e relatorios. Ele precisa
+de uma camada confiavel que controle quem pode entrar e qual setor pode
+executar cada operacao.
+
+O GFacilERP funciona como essa camada administrativa. Ele nao substitui o
+FacilERP e nao deve compartilhar diretamente suas credenciais ou sua chave
+service_role. Sua responsabilidade e administrar identidades, status de
+acesso, setores, permissoes e eventos de seguranca. O FacilERP continua
+responsavel pelos dados operacionais e pelo CRUD de seus proprios modulos.
+
+A separacao dos aplicativos e dos projetos Supabase reduz o impacto de uma
+falha isolada, evita que usuarios comuns tenham acesso a operacoes
+administrativas e facilita a auditoria. A integracao futura deve ocorrer por
+API segura, Edge Functions, sincronizacao controlada ou SSO; uma sessao de um
+projeto Supabase nao deve ser considerada valida automaticamente no outro.
+
+CONCLUIDO
+---------
+- Criada a aplicacao independente dentro de GFacilERP.
+- Criado banco Supabase separado com as tabelas:
+  - administradores;
+  - usuarios_gerenciados;
+  - auditoria_administrativa.
+- Criado login com e-mail e senha usando Supabase Auth.
+- Removido o modo demonstracao.
+- Login validando se o usuario autenticado existe em
+  public.administradores e esta ativo.
+- Criada a tela de usuarios, inicialmente sem dados ficticios.
+- Criadas as telas de auditoria e configuracoes.
+- Criada validacao compartilhada de acesso administrativo.
+- Criado rodape com o texto "Codado por 2E" e link para
+  https://instagram.com.
+- Criado package-lock.json.
+- Build de producao validado com sucesso.
+- Variaveis de ambiente locais protegidas pelo .gitignore.
+- Nenhuma senha, chave privada, token ou dado real deve ser versionado.
+
+PENDENCIAS PRIORITARIAS
+-----------------------
+- Criar Edge Functions ou API server-side para:
+  - criar usuario no Supabase Auth;
+  - aprovar usuario;
+  - bloquear e desbloquear usuario;
+  - alterar ou redefinir senha;
+  - delegar setor;
+  - atribuir permissoes;
+  - registrar cada mutacao na auditoria.
+- Nunca executar essas operacoes usando service_role no navegador.
+- Exigir MFA para administradores.
+- Adicionar rate limit e protecao contra brute force.
+- Revogar sessoes quando uma conta for bloqueada.
+- Implementar RLS restritivo para cada operacao.
+- Validar autorizacao no backend, nao apenas na interface.
+- Adicionar protecoes de CSRF, XSS, IDOR, SSRF e injecao.
+- Configurar headers de seguranca e CORS com origens permitidas.
+- Evitar enumeracao de usuarios e vazamento de dados pessoais.
+- Criar testes automatizados de autenticacao, autorizacao e auditoria.
+- Definir o contrato de integracao com o FacilERP.
+- Decidir entre API segura, sincronizacao controlada ou SSO.
+
+REGRAS DE SEGURANCA
+--------------------
+- Chaves service_role, sb_secret e senhas do banco ficam somente no servidor.
+- O navegador utiliza apenas variaveis publicas necessarias ao Supabase Auth.
+- Toda criacao, alteracao, bloqueio ou exclusao exige confirmacao antes da
+  persistencia.
+- Toda operacao administrativa sensivel deve gerar evento de auditoria.
+- Mensagens de erro nao devem revelar se um e-mail existe ou qual regra falhou.
+- Dados pessoais devem ser minimizados nas consultas e respostas.
+- Uploads futuros devem usar bucket privado, limite de tamanho e validacao de
+  tipo e extensao.
+- O banco deve iniciar vazio e a interface deve mostrar somente registros
+  realmente persistidos.
+
+RELACAO DE RESPONSABILIDADES
+----------------------------
+GFACILERP:
+- Identidades administrativas e usuarios gerenciados.
+- Aprovacao, bloqueio e recuperacao controlada de acesso.
+- Setores, permissoes e auditoria administrativa.
+
+FACILERP:
+- Insumos, produtos, compras e fornecedores.
+- Orcamentos e documentos operacionais.
+- Notas fiscais, patrimonio e relatorios.
+- CRUD dos dados operacionais conforme as permissoes recebidas.
+
+HISTORICO DE MUDANCAS
+---------------------
+- 15/10/2026 - Criado este arquivo para registrar objetivos, mudancas,
+  pendencias, regras de seguranca e a importancia do GFacilERP para o
+  FacilERP.
