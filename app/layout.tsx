@@ -7,5 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="pt-BR"><body>{children}<footer className="footer">Codado por 2E — <a href="https://instagram.com" rel="noreferrer" target="_blank">Instagram</a></footer></body></html>;
+  return <html lang="pt-BR"><body>{children}</body></html>;
 }

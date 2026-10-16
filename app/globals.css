@@ -35,6 +35,4 @@ th { color: #52606d; font-size: 12px; text-transform: uppercase; }
 .alert { border-radius: 8px; margin: 16px 0; padding: 12px 14px; }
 .alert.error { background: #fff5f5; color: #9b1c1c; }
 .alert.success { background: #ebfbee; color: #176b2c; }
-.footer { color: #627d98; font-size: 12px; padding: 18px 36px; text-align: center; }
-.footer a { color: #1769aa; }
 @media (max-width: 760px) { .sidebar { width: 190px; flex-basis: 190px; } .main, .topbar { padding: 22px 18px; } .form-grid { grid-template-columns: 1fr; } }

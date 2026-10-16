@@ -49,8 +49,7 @@ CONCLUIDO
 - Criada a tela de usuarios, inicialmente sem dados ficticios.
 - Criadas as telas de auditoria e configuracoes.
 - Criada validacao compartilhada de acesso administrativo.
-- Criado rodape com o texto "Codado por 2E" e link para
-  https://instagram.com.
+- Rodape administrativo mantido sem assinatura ou link promocional.
 - Criado package-lock.json.
 - Build de producao validado com sucesso.
 - Schema preparado para CRUD administrativo de usuarios gerenciados, com RLS
@@ -124,6 +123,7 @@ ATUALIZACAO E INTEGRACAO FUTURA
 - Atualizacoes do aplicativo Windows devem preservar dados locais e permitir
   retorno seguro para uma versao anterior quando necessario.
 - Toda mudanca relevante deve ser registrada neste arquivo e no repositorio.
+- A assinatura do rodape foi removida conforme solicitado.
 
 RELACAO DE RESPONSABILIDADES
 ----------------------------
