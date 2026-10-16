@@ -53,6 +53,8 @@ CONCLUIDO
   https://instagram.com.
 - Criado package-lock.json.
 - Build de producao validado com sucesso.
+- Schema preparado para CRUD administrativo de usuarios gerenciados, com RLS
+  para administradores e trigger de atualizado_em.
 - Variaveis de ambiente locais protegidas pelo .gitignore.
 - Nenhuma senha, chave privada, token ou dado real deve ser versionado.
 
@@ -86,6 +88,8 @@ PENDENCIAS PRIORITARIAS
 - Criar testes automatizados de autenticacao, autorizacao e auditoria.
 - Definir o contrato de integracao com o FacilERP.
 - Decidir entre API segura, sincronizacao controlada ou SSO.
+- Criar GFacilERP/.env.local após o projeto Supabase existir; atualmente esse
+  arquivo ainda não existe e não há conexão local configurada.
 
 REGRAS DE SEGURANCA
 --------------------
@@ -143,3 +147,5 @@ HISTORICO DE MUDANCAS
 - 15/10/2026 - Criado este arquivo para registrar objetivos, mudancas,
   pendencias, regras de seguranca e a importancia do GFacilERP para o
   FacilERP.
+- 16/10/2026 - Schema preparado para CRUD protegido de usuários gerenciados;
+  conexão local ainda aguarda a criação do projeto Supabase.

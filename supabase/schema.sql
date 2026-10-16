@@ -27,6 +27,20 @@ create table public.auditoria_administrativa (
   criado_em timestamptz not null default timezone('utc', now())
 );
 
+create or replace function public.set_atualizado_em()
+returns trigger language plpgsql
+set search_path = public
+as $$
+begin
+  new.atualizado_em = timezone('utc', now());
+  return new;
+end;
+$$;
+
+create trigger usuarios_gerenciados_atualizado_em
+before update on public.usuarios_gerenciados
+for each row execute function public.set_atualizado_em();
+
 alter table public.administradores enable row level security;
 alter table public.usuarios_gerenciados enable row level security;
 alter table public.auditoria_administrativa enable row level security;
@@ -38,6 +52,18 @@ as $$ select exists (select 1 from public.administradores where id = auth.uid() 
 create policy "Admins leem usuários gerenciados"
   on public.usuarios_gerenciados for select to authenticated using (public.is_admin());
 
+create policy "Admins criam usuários gerenciados"
+  on public.usuarios_gerenciados for insert to authenticated
+  with check (public.is_admin());
+
+create policy "Admins alteram usuários gerenciados"
+  on public.usuarios_gerenciados for update to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+
+create policy "Admins excluem usuários gerenciados"
+  on public.usuarios_gerenciados for delete to authenticated
+  using (public.is_admin());
+
 create policy "Admins leem seu perfil"
   on public.administradores for select to authenticated using (id = auth.uid());
 
@@ -46,4 +72,5 @@ create policy "Admins leem auditoria"
 
 revoke all on public.administradores, public.usuarios_gerenciados, public.auditoria_administrativa from anon;
 grant usage on schema public to authenticated;
-grant select on public.administradores, public.usuarios_gerenciados, public.auditoria_administrativa to authenticated;
+grant select on public.administradores, public.auditoria_administrativa to authenticated;
+grant select, insert, update, delete on public.usuarios_gerenciados to authenticated;
