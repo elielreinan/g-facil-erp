@@ -6,8 +6,6 @@ const AUDIENCE = 'facil-erp-account-management';
 const ALLOWED_SECTORS = new Set(['suprimentos', 'orcamentos', 'ti', 'diretoria']);
 
 type Action =
-  | { action: 'create'; nome: string; email: string; setor: string }
-  | { action: 'approve' | 'reset'; user_id: string }
   | { action: 'set_status'; user_id: string; status: 'aprovado' | 'bloqueado' }
   | { action: 'set_sector'; user_id: string; setor: string };
 
@@ -178,29 +176,6 @@ function isUuid(value: unknown): value is string {
 
 function parseManagementAction(value: unknown): Action | null {
   if (!isRecord(value) || typeof value.action !== 'string') return null;
-
-  if (value.action === 'create') {
-    if (
-      typeof value.nome !== 'string' ||
-      value.nome.trim().length < 2 ||
-      value.nome.trim().length > 150 ||
-      typeof value.email !== 'string' ||
-      value.email.trim().length > 254 ||
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.email.trim()) ||
-      typeof value.setor !== 'string' ||
-      !ALLOWED_SECTORS.has(value.setor)
-    ) return null;
-    return {
-      action: 'create',
-      nome: value.nome.trim(),
-      email: value.email.trim().toLowerCase(),
-      setor: value.setor,
-    };
-  }
-
-  if (value.action === 'approve' || value.action === 'reset') {
-    return isUuid(value.user_id) ? { action: value.action, user_id: value.user_id } : null;
-  }
 
   if (value.action === 'set_status') {
     if (!isUuid(value.user_id) || (value.status !== 'aprovado' && value.status !== 'bloqueado')) return null;
@@ -415,32 +390,6 @@ async function findManagedUser(
   return data as ManagedUser;
 }
 
-async function inviteManagedUser(
-  client: AdminClient,
-  user: ManagedUser,
-  administratorId: string,
-): Promise<string> {
-  const result = await callFacilERP({
-    action: 'invite',
-    managed_user_id: user.id,
-    nome: user.nome,
-    email: user.email,
-    setor: user.setor,
-  }, administratorId);
-  if (!result.ok || !result.authUserId) {
-    throw new Error('The FacilERP invitation could not be completed.');
-  }
-
-  await completeManagedUserOperation(
-    client,
-    administratorId,
-    user.id,
-    'approve',
-    result.authUserId,
-  );
-  return result.authUserId;
-}
-
 Deno.serve(async (request: Request) => {
   const corsHeaders = getCorsHeaders(request);
   if (!corsHeaders) return jsonResponse(403, { error: 'origin_not_allowed' });
@@ -518,6 +467,13 @@ Deno.serve(async (request: Request) => {
     } catch {
       return jsonResponse(400, { error: 'invalid_json' }, corsHeaders);
     }
+    if (
+      isRecord(parsedBody) &&
+      typeof parsedBody.action === 'string' &&
+      ['create', 'approve', 'reset'].includes(parsedBody.action)
+    ) {
+      return jsonResponse(503, { error: 'email_actions_unavailable' }, corsHeaders);
+    }
     const parsedRequest = parseAction(parsedBody);
     if (!parsedRequest) return jsonResponse(400, { error: 'invalid_request' }, corsHeaders);
     const { action, idempotencyKey } = parsedRequest;
@@ -550,70 +506,11 @@ Deno.serve(async (request: Request) => {
     };
 
     try {
-      if (action.action === 'create') {
-        const { data: created, error: createError } = await adminClient
-          .from('usuarios_gerenciados')
-          .insert({
-            nome: action.nome,
-            email: action.email,
-            setor: action.setor,
-            status: 'pendente',
-          })
-          .select('id,nome,email,setor,status,auth_user_id')
-          .single();
-        if (createError || !created) {
-          console.error('Failed to create pending managed user.', { code: createError?.code });
-          return await respond(createError?.code === '23505' ? 409 : 503, {
-            error: createError?.code === '23505' ? 'user_already_exists' : 'user_creation_failed',
-          });
-        }
-        const user = created as ManagedUser;
-        try {
-          await writeAudit(adminClient, administrator.id, 'criou', user.id, {
-            setor: user.setor,
-            status: 'pendente',
-          });
-        } catch {
-          const { error: cleanupError } = await adminClient
-            .from('usuarios_gerenciados')
-            .delete()
-            .eq('id', user.id);
-          if (cleanupError) {
-            console.error('Failed to remove an unaudited pending user.', { code: cleanupError.code });
-          }
-          return await respond(503, { error: 'audit_unavailable' });
-        }
-        try {
-          await inviteManagedUser(adminClient, user, administrator.id);
-        } catch {
-          return await respond(502, {
-            error: 'invite_failed_pending',
-            user_id: user.id,
-          });
-        }
-        return await respond(201, { user_id: user.id, status: 'aprovado' });
-      }
-
       const user = await findManagedUser(adminClient, action.user_id);
-      if (action.action === 'approve') {
-        if (user.status === 'aprovado' && user.auth_user_id) {
-          return await respond(200, {
-            user_id: user.id,
-            auth_user_id: user.auth_user_id,
-            status: user.status,
-          });
-        }
-        if (user.status !== 'pendente') return await respond(409, { error: 'invalid_user_state' });
-        let authUserId: string;
-        try {
-          authUserId = await inviteManagedUser(adminClient, user, administrator.id);
-        } catch {
-          return await respond(502, { error: 'invite_failed_pending', user_id: user.id });
-        }
-        return await respond(200, { user_id: user.id, auth_user_id: authUserId, status: 'aprovado' });
-      }
-
       if (action.action === 'set_status') {
+        if (action.status === 'aprovado' && user.status === 'pendente') {
+          return await respond(503, { error: 'email_actions_unavailable' });
+        }
         if (!user.auth_user_id) {
           return await respond(409, { error: 'invalid_user_state' });
         }
@@ -672,21 +569,6 @@ Deno.serve(async (request: Request) => {
           return await respond(503, { error: 'state_reconciliation_required' });
         }
         return await respond(200, { user_id: user.id, setor: action.setor });
-      }
-
-      if (action.action === 'reset') {
-        if (!user.auth_user_id || user.status !== 'aprovado') {
-          return await respond(409, { error: 'invalid_user_state' });
-        }
-        const result = await callFacilERP({
-          action: 'reset',
-          managed_user_id: user.id,
-          auth_user_id: user.auth_user_id,
-        }, administrator.id);
-        if (!result.ok) return await respond(502, { error: 'facil_erp_operation_failed' });
-
-        await writeAudit(adminClient, administrator.id, 'solicitou_reset', user.id, {});
-        return await respond(200, { user_id: user.id, reset_requested: true });
       }
 
       return await respond(400, { error: 'invalid_request' });
