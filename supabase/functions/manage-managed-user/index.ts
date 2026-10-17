@@ -6,6 +6,9 @@ const AUDIENCE = 'facil-erp-account-management';
 const ALLOWED_SECTORS = new Set(['suprimentos', 'orcamentos', 'ti', 'diretoria']);
 
 type Action =
+  | { action: 'create'; nome: string; email: string; setor: string }
+  | { action: 'approve'; user_id: string }
+  | { action: 'reset'; user_id: string }
   | { action: 'set_status'; user_id: string; status: 'aprovado' | 'bloqueado' }
   | { action: 'set_sector'; user_id: string; setor: string };
 
@@ -102,7 +105,7 @@ type Database = {
           p_administrator_id: string;
           p_user_id: string;
           p_operation: string;
-          p_auth_user_id: string;
+          p_auth_user_id: string | null;
           p_status: string | null;
           p_sector: string | null;
         };
@@ -176,6 +179,30 @@ function isUuid(value: unknown): value is string {
 
 function parseManagementAction(value: unknown): Action | null {
   if (!isRecord(value) || typeof value.action !== 'string') return null;
+
+  if (value.action === 'create') {
+    if (
+      typeof value.nome !== 'string' ||
+      value.nome.trim().length < 2 ||
+      value.nome.trim().length > 150 ||
+      typeof value.email !== 'string' ||
+      value.email.length > 254 ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.email.trim()) ||
+      typeof value.setor !== 'string' ||
+      !ALLOWED_SECTORS.has(value.setor)
+    ) return null;
+    return {
+      action: 'create',
+      nome: value.nome.trim(),
+      email: value.email.trim().toLowerCase(),
+      setor: value.setor,
+    };
+  }
+
+  if (value.action === 'approve' || value.action === 'reset') {
+    if (!isUuid(value.user_id)) return null;
+    return { action: value.action, user_id: value.user_id };
+  }
 
   if (value.action === 'set_status') {
     if (!isUuid(value.user_id) || (value.status !== 'aprovado' && value.status !== 'bloqueado')) return null;
@@ -355,8 +382,8 @@ async function completeManagedUserOperation(
   client: AdminClient,
   administratorId: string,
   userId: string,
-  operation: 'approve' | 'set_status' | 'set_sector',
-  authUserId: string,
+  operation: 'invite' | 'approve' | 'reset' | 'set_status' | 'set_sector',
+  authUserId: string | null,
   status: 'aprovado' | 'bloqueado' | null = null,
   sector: string | null = null,
 ): Promise<void> {
@@ -472,7 +499,139 @@ Deno.serve(async (request: Request) => {
       typeof parsedBody.action === 'string' &&
       ['create', 'approve', 'reset'].includes(parsedBody.action)
     ) {
-      return jsonResponse(503, { error: 'email_actions_unavailable' }, corsHeaders);
+      const parsedRequest = parseAction(parsedBody);
+      if (!parsedRequest) return jsonResponse(400, { error: 'invalid_request' }, corsHeaders);
+      const { action, idempotencyKey } = parsedRequest;
+      const idempotency = await beginIdempotentRequest(
+        adminClient,
+        administrator.id,
+        idempotencyKey,
+        action,
+      );
+      if (idempotency.outcome === 'conflict') {
+        return jsonResponse(409, { error: 'idempotency_key_reused' }, corsHeaders);
+      }
+      if (idempotency.outcome === 'in_progress') {
+        return jsonResponse(409, { error: 'operation_in_progress' }, corsHeaders);
+      }
+      if (idempotency.outcome === 'completed') {
+        return jsonResponse(idempotency.responseStatus, idempotency.responseBody, corsHeaders);
+      }
+      const respond = async (status: number, body: JsonObject) => {
+        await completeIdempotentRequest(
+          adminClient,
+          administrator.id,
+          idempotencyKey,
+          idempotency.requestHash,
+          status,
+          body,
+        );
+        return jsonResponse(status, body, corsHeaders);
+      };
+
+      try {
+        if (action.action === 'create') {
+          const { data: existing, error: lookupError } = await adminClient
+            .from('usuarios_gerenciados')
+            .select('id,nome,email,setor,status,auth_user_id')
+            .eq('email', action.email)
+            .maybeSingle();
+          if (lookupError) {
+            console.error('Failed to check for an existing managed user.', { code: lookupError.code });
+            return await respond(503, { error: 'user_lookup_unavailable' });
+          }
+          let user = existing as ManagedUser | null;
+          if (user && (user.status !== 'pendente' || user.auth_user_id)) {
+            return await respond(409, { error: 'email_already_registered' });
+          }
+          if (!user) {
+            const { data, error } = await adminClient
+              .from('usuarios_gerenciados')
+              .insert({
+                nome: action.nome,
+                email: action.email,
+                setor: action.setor,
+                status: 'pendente',
+              })
+              .select('id,nome,email,setor,status,auth_user_id')
+              .single();
+            if (error || !data) {
+              console.error('Failed to create managed-user request.', { code: error?.code });
+              return await respond(error?.code === '23505' ? 409 : 503, {
+                error: error?.code === '23505' ? 'email_already_registered' : 'user_creation_failed',
+              });
+            }
+            user = data as ManagedUser;
+          }
+
+          const result = await callFacilERP({
+            action: 'invite',
+            managed_user_id: user.id,
+            nome: user.nome,
+            email: user.email,
+            setor: user.setor,
+          }, administrator.id);
+          if (!result.ok || !result.authUserId) {
+            return await respond(502, { error: 'facil_erp_invitation_failed' });
+          }
+          await completeManagedUserOperation(
+            adminClient,
+            administrator.id,
+            user.id,
+            'invite',
+            result.authUserId,
+          );
+          return await respond(201, { user_id: user.id, status: 'pendente' });
+        }
+
+        const user = await findManagedUser(adminClient, action.user_id);
+        if (action.action === 'approve') {
+          if (!user.auth_user_id || user.status !== 'pendente') {
+            return await respond(409, { error: 'invalid_user_state' });
+          }
+          const result = await callFacilERP({
+            action: 'set_status',
+            managed_user_id: user.id,
+            auth_user_id: user.auth_user_id,
+            status: 'aprovado',
+          }, administrator.id);
+          if (!result.ok) return await respond(502, { error: 'facil_erp_operation_failed' });
+          await completeManagedUserOperation(
+            adminClient,
+            administrator.id,
+            user.id,
+            'approve',
+            user.auth_user_id,
+          );
+          return await respond(200, { user_id: user.id, status: 'aprovado' });
+        }
+
+        if (action.action === 'reset') {
+          if (!user.auth_user_id || user.status !== 'aprovado') {
+            return await respond(409, { error: 'invalid_user_state' });
+          }
+          const result = await callFacilERP({
+            action: 'reset',
+            managed_user_id: user.id,
+            auth_user_id: user.auth_user_id,
+            email: user.email,
+          }, administrator.id);
+          if (!result.ok) return await respond(502, { error: 'facil_erp_reset_failed' });
+          await completeManagedUserOperation(
+            adminClient,
+            administrator.id,
+            user.id,
+            'reset',
+            user.auth_user_id,
+          );
+          return await respond(200, { user_id: user.id, message: 'reset_code_sent' });
+        }
+      } catch (error) {
+        console.error('GFacilERP idempotent email operation failed.', {
+          error: error instanceof Error ? error.name : 'unknown',
+        });
+        return await respond(500, { error: 'account_management_failed' });
+      }
     }
     const parsedRequest = parseAction(parsedBody);
     if (!parsedRequest) return jsonResponse(400, { error: 'invalid_request' }, corsHeaders);

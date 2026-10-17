@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { requireAdmin } from '../../lib/admin-access';
 import { SignOutButton } from '../../components/sign-out-button';
 
@@ -11,9 +11,13 @@ type ManagedUser = {
   email: string;
   setor: Sector;
   status: 'pendente' | 'aprovado' | 'bloqueado';
+  auth_user_id: string | null;
   criado_em: string;
 };
 type ManagementAction =
+  | { action: 'create'; nome: string; email: string; setor: Sector }
+  | { action: 'approve'; user_id: string }
+  | { action: 'reset'; user_id: string }
   | { action: 'set_status'; user_id: string; status: 'aprovado' | 'bloqueado' }
   | { action: 'set_sector'; user_id: string; setor: Sector };
 
@@ -34,6 +38,9 @@ function isOperationInProgress(value: unknown): boolean {
 export default function UsersPage() {
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [sectorDrafts, setSectorDrafts] = useState<Record<string, Sector>>({});
+  const [newUserName, setNewUserName] = useState('');
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserSector, setNewUserSector] = useState<Sector>('suprimentos');
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -50,7 +57,7 @@ export default function UsersPage() {
       }
       const { data, error: queryError } = await supabase
         .from('usuarios_gerenciados')
-        .select('id,nome,email,setor,status,criado_em')
+        .select('id,nome,email,setor,status,auth_user_id,criado_em')
         .order('nome');
       if (queryError) throw queryError;
       setUsers((data ?? []) as ManagedUser[]);
@@ -122,6 +129,33 @@ export default function UsersPage() {
     }
   }
 
+  async function runCreateUser(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError('');
+    setMessage('');
+    const nome = newUserName.trim();
+    const email = newUserEmail.trim().toLowerCase();
+    if (nome.length < 2 || nome.length > 150) {
+      setError('Informe um nome com 2 a 150 caracteres.');
+      return;
+    }
+    if (!window.confirm(`Criar convite para ${email}?`)) return;
+    setBusyUserId('new-user');
+    try {
+      await callManagement({ action: 'create', nome, email, setor: newUserSector });
+      setMessage('Convite enviado. O usuário deve informar o código recebido no FacilERP e aguardar a aprovação.');
+      setNewUserName('');
+      setNewUserEmail('');
+      await loadUsers();
+    } catch (caughtError) {
+      console.error('Falha ao criar usuário gerenciado:', caughtError);
+      setError('Não foi possível enviar o convite. Verifique o e-mail e a configuração de SMTP/modelo OTP no Supabase.');
+      await loadUsers();
+    } finally {
+      setBusyUserId('');
+    }
+  }
+
   const visibleUsers = users.filter((user) =>
     `${user.nome} ${user.email}`.toLowerCase().includes(search.toLowerCase())
   );
@@ -154,7 +188,7 @@ export default function UsersPage() {
               </div>
             </div>
             <p className="alert" role="status">
-              Criação, convites e redefinição de senha estão temporariamente indisponíveis.
+              Convites e redefinições usam códigos de 6 dígitos enviados por e-mail. O usuário deve digitar o código no FacilERP.
             </p>
             {error && <p className="alert error" role="alert">{error}</p>}
             {message && <p className="alert success" role="status">{message}</p>}
@@ -173,7 +207,7 @@ export default function UsersPage() {
                 </thead>
                 <tbody>
                   {visibleUsers.map((user) => {
-                    const busy = busyUserId === user.id;
+                    const busy = busyUserId !== '';
                     const selectedSector = sectorDrafts[user.id] ?? user.setor;
                     return (
                       <tr key={user.id}>
@@ -220,9 +254,37 @@ export default function UsersPage() {
                         </td>
                         <td>
                           <div className="toolbar">
-                            {user.status === 'pendente' && <span>Convite não habilitado</span>}
+                            {user.status === 'pendente' && <span>{user.auth_user_id ? 'Aguardando aprovação' : 'Convite pendente de envio'}</span>}
+                            {user.status === 'pendente' && user.auth_user_id && (
+                              <button
+                                className="button"
+                                disabled={busy}
+                                onClick={() => void runUserAction(
+                                  user,
+                                  { action: 'approve', user_id: user.id },
+                                  `Aprovar o acesso de ${user.email}?`,
+                                  'Acesso aprovado.',
+                                )}
+                                type="button"
+                              >
+                                Aprovar
+                              </button>
+                            )}
                             {user.status === 'aprovado' && (
                               <>
+                                <button
+                                  className="button secondary"
+                                  disabled={busy}
+                                  onClick={() => void runUserAction(
+                                    user,
+                                    { action: 'reset', user_id: user.id },
+                                    `Enviar um código para redefinir a senha de ${user.email}?`,
+                                    'Código de redefinição enviado.',
+                                  )}
+                                  type="button"
+                                >
+                                  Redefinir senha
+                                </button>
                                 <button
                                   className="button secondary"
                                   disabled={busy}
@@ -254,7 +316,6 @@ export default function UsersPage() {
                               </button>
                             )}
                             {busy && <span role="status">Processando...</span>}
-                            {user.status === 'aprovado' && <span>Redefinição de senha não habilitada</span>}
                           </div>
                         </td>
                       </tr>
@@ -267,8 +328,46 @@ export default function UsersPage() {
             </div>
           </section>
           <section className="card">
-            <h2>Cadastro de usuários</h2>
-            <p>Indisponível até a configuração de convites e callback de autenticação do aplicativo.</p>
+            <h2>Convidar usuário</h2>
+            <p>O convite cria uma conta pendente. Após receber o código e definir a senha, aprove o acesso nesta lista.</p>
+            <form className="form-grid" onSubmit={(event) => void runCreateUser(event)}>
+              <label>
+                Nome
+                <input
+                  autoComplete="name"
+                  maxLength={150}
+                  minLength={2}
+                  onChange={(event) => setNewUserName(event.target.value)}
+                  required
+                  value={newUserName}
+                />
+              </label>
+              <label>
+                E-mail
+                <input
+                  autoComplete="email"
+                  maxLength={254}
+                  onChange={(event) => setNewUserEmail(event.target.value)}
+                  required
+                  type="email"
+                  value={newUserEmail}
+                />
+              </label>
+              <label>
+                Setor
+                <select
+                  onChange={(event) => setNewUserSector(event.target.value as Sector)}
+                  value={newUserSector}
+                >
+                  {sectors.map((sector) => (
+                    <option key={sector.value} value={sector.value}>{sector.label}</option>
+                  ))}
+                </select>
+              </label>
+              <button className="button" disabled={busyUserId !== ''} type="submit">
+                {busyUserId === 'new-user' ? 'Enviando convite...' : 'Criar e enviar convite'}
+              </button>
+            </form>
           </section>
         </main>
       </div>
