@@ -102,8 +102,8 @@ habilitar o fluxo:
 - validar em staging a chave de idempotencia para operacoes de criacao,
   aprovacao, alteracao de setor/status e redefinicao. A migration
   `20261017010000_admin_operation_idempotency.sql` e as assertions
-  `supabase/tests/admin_idempotency.sql` passaram em PostgreSQL 17.11
-  descartavel, mas ainda nao foram aplicadas ao Supabase local ou remoto;
+  `supabase/tests/admin_idempotency.sql` passaram no Supabase local PostgreSQL
+  17.11; a migration continua sem aplicacao remota;
 - repetir enrollment TOTP, gate AAL2, revogacao global e bloqueio de
   administradores inativos em staging antes de uso amplo em producao.
 
@@ -118,8 +118,9 @@ A idempotencia administrativa calcula hash apenas do payload validado,
 reserva a chave por administrador, rejeita reuso com payload diferente,
 bloqueia operacoes simultaneas e persiste status/corpo da resposta para replay.
 A interface mantem a mesma chave em falhas de transporte, limite de taxa e
-operacoes ainda em andamento. A migration e o teste foram executados em um
-PostgreSQL 17.11 descartavel com rollback; nenhum banco Supabase foi alterado.
+operacoes ainda em andamento. A migration foi aplicada no Supabase local
+PostgreSQL 17.11 e o teste transacional passou com rollback dos dados de teste.
+Nenhum banco Supabase remoto foi alterado.
 As duas Edge Functions passaram no Deno type-check e o teste cruzado M2M entre
 emissor e receptor aceitou uma assinatura valida e rejeitou uma adulterada.
 O fluxo completo com Auth/servicos locais e staging ainda precisa ser exercitado.
