@@ -5,7 +5,7 @@ export async function requireAdmin() {
   const { data: authData, error: authError } = await supabase.auth.getUser();
 
   if (authError || !authData.user) {
-    return { supabase, user: null, authorized: false };
+    return { supabase, user: null, authorized: false, mfaRequired: false };
   }
 
   const { data: administrator, error: administratorError } = await supabase
@@ -19,5 +19,24 @@ export async function requireAdmin() {
     throw administratorError;
   }
 
-  return { supabase, user: authData.user, authorized: Boolean(administrator) };
+  if (!administrator) {
+    return {
+      supabase,
+      user: authData.user,
+      authorized: false,
+      mfaRequired: false,
+    };
+  }
+
+  const { data: assurance, error: assuranceError } =
+    await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (assuranceError) throw assuranceError;
+  const mfaRequired = assurance.currentLevel !== 'aal2';
+
+  return {
+    supabase,
+    user: authData.user,
+    authorized: !mfaRequired,
+    mfaRequired,
+  };
 }

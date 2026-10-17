@@ -4,7 +4,7 @@ STATUS DE DESENVOLVIMENTO
 
 ULTIMA ATUALIZACAO
 ------------------
-15/10/2026 - 01:13
+17/10/2026
 
 OBJETIVO DO APLICATIVO
 ----------------------
@@ -38,7 +38,7 @@ projeto Supabase nao deve ser considerada valida automaticamente no outro.
 CONCLUIDO
 ---------
 - Criada a aplicacao independente dentro de GFacilERP.
-- Criado banco Supabase separado com as tabelas:
+- Definido schema Supabase separado com as tabelas:
   - administradores;
   - usuarios_gerenciados;
   - auditoria_administrativa.
@@ -51,44 +51,53 @@ CONCLUIDO
 - Criada validacao compartilhada de acesso administrativo.
 - Rodape administrativo mantido sem assinatura ou link promocional.
 - Criado package-lock.json.
-- Build de producao validado com sucesso.
-- Schema preparado para CRUD administrativo de usuarios gerenciados, com RLS
-  para administradores e trigger de atualizado_em.
+- Build de producao validado; os testes finais dos dois aplicativos tambem
+  passaram nesta etapa.
+- Schema local com RLS e trigger de atualizado_em; migration remota aplicada
+  para revogar INSERT, UPDATE e DELETE diretos em usuarios_gerenciados pelo
+  papel authenticated. A leitura continua permitida a administradores.
+- Backup manual de roles, schema e dados confirmado antes das migrations.
+- PostgreSQL remoto 17.11; baseline reconciliado e historico com as duas
+  migrations locais conferido.
 - Variaveis de ambiente locais protegidas pelo .gitignore.
 - Nenhuma senha, chave privada, token ou dado real deve ser versionado.
 
 PENDENCIAS PRIORITARIAS
 -----------------------
-- Criar o projeto Supabase próprio do GFacilERP, separado do projeto do
-  FacilERP. Esse projeto será obrigatório para Auth, administradores,
-  usuários gerenciados e auditoria.
-- Executar supabase/schema.sql no projeto Supabase do GFacilERP.
-- Configurar GFacilERP/.env.local com NEXT_PUBLIC_SUPABASE_URL e
-  NEXT_PUBLIC_SUPABASE_ANON_KEY do projeto próprio, sem versionar o arquivo.
-- Criar o primeiro usuário administrador no Auth e inserir seu perfil em
-  public.administradores.
-- Criar Edge Functions ou API server-side para:
-  - criar usuario no Supabase Auth;
-  - aprovar usuario;
-  - bloquear e desbloquear usuario;
-  - alterar ou redefinir senha;
-  - delegar setor;
-  - atribuir permissoes;
-  - registrar cada mutacao na auditoria.
-- Nunca executar essas operacoes usando service_role no navegador.
-- Exigir MFA para administradores.
-- Adicionar rate limit e protecao contra brute force.
-- Revogar sessoes quando uma conta for bloqueada.
-- Implementar RLS restritivo para cada operacao.
-- Validar autorizacao no backend, nao apenas na interface.
-- Adicionar protecoes de CSRF, XSS, IDOR, SSRF e injecao.
-- Configurar headers de seguranca e CORS com origens permitidas.
-- Evitar enumeracao de usuarios e vazamento de dados pessoais.
-- Criar testes automatizados de autenticacao, autorizacao e auditoria.
-- Definir o contrato de integracao com o FacilERP.
-- Decidir entre API segura, sincronizacao controlada ou SSO.
-- Criar GFacilERP/.env.local após o projeto Supabase existir; atualmente esse
-  arquivo ainda não existe e não há conexão local configurada.
+- Validar o contrato server-to-server e os fluxos Auth em staging: tokens RSA
+  curtos, assinados pelo GFacilERP e verificados pelo FacilERP. As sessions
+  JWT dos dois projetos nao sao compartilhadas.
+- Confirmar que existe ao menos um administrador ativo inicial em
+  public.administradores e que o acesso de emergencia foi testado.
+- As duas Edge Functions e a interface administrativa foram implementadas
+  localmente. Ambas as functions compilaram no runtime local; assinatura,
+  adulteracao do corpo, replay e RLS para perfil inativo foram verificados
+  localmente. O rate limit foi validado no PostgreSQL 17.11 descartavel e as
+  migrations de rate limit e auditoria atomica foram aplicadas ao Supabase
+  local. As migrations locais `20261016233000_harden_admin_rls.sql` e
+  `20261016233100_harden_updated_at_trigger.sql` fixam o `search_path`,
+  restringem execucao de `is_admin()` e revalidam grants. Testes locais
+  confirmaram que administrador inativo nao le dados e `authenticated` nao
+  escreve diretamente. Ainda falta testar Auth, falhas e limite de taxa em
+  staging.
+- Configurar secrets em cada projeto e publicar functions/migration somente
+  depois de autorizacao explicita para alterar os ambientes remotos.
+- Confirmar que os convites e redefinicoes chegam pelo SMTP e que o link
+  retorna para a tela segura de definicao de senha do FacilERP.
+- Nao colocar service_role nem qualquer segredo no cliente. O modelo M2M foi
+  aprovado; a configuracao de credenciais server-side ainda nao foi feita.
+- MFA TOTP e gate AAL2 foram implementados localmente no cliente e na Edge
+  Function. Falta validar enrollment/Auth e revogacao de sessoes em staging.
+- Headers de seguranca foram adicionados ao Next.js e verificados em resposta
+  HTTP local; revisar CORS e validar em staging.
+- Adicionar chave de idempotencia para repeticoes de criacao e solicitacao de
+  redefinicao de senha.
+- Revisar CORS, headers, tratamento de erros e minimizacao de dados pessoais.
+- O Storage privado do FacilERP ja esta implementado localmente; preparar
+  backup dos objetos e validar as policies em staging. Dumps SQL nao incluem
+  arquivos binarios.
+- Testar QR no Android real via HTTPS e validar os fluxos restantes com
+  dados ficticios em ambiente controlado.
 
 REGRAS DE SEGURANCA
 --------------------
@@ -114,6 +123,10 @@ ATUALIZACAO E INTEGRACAO FUTURA
   migracao, com backup e plano de rollback.
 - A integracao com o FacilERP e sistemas futuros deve usar API versionada,
   Edge Functions, webhooks ou filas, nunca acesso direto ao banco por terceiros.
+- O GFacilERP e o FacilERP usam projetos Supabase diferentes: validar o
+  administrador no primeiro nao autoriza automaticamente uma chamada no
+  segundo. A decisao M2M assinada foi aprovada; secrets, publicacao e testes
+  operacionais ainda estao pendentes.
 - Cada integracao deve usar autenticacao forte, escopos minimos, rate limit,
   idempotencia, logs e tratamento explicito de falhas.
 - Contratos de integracao devem ser documentados antes de serem consumidos.
@@ -149,3 +162,42 @@ HISTORICO DE MUDANCAS
   FacilERP.
 - 16/10/2026 - Schema preparado para CRUD protegido de usuários gerenciados;
   conexão local ainda aguarda a criação do projeto Supabase.
+- 16/10/2026 - Build de produção corrigido removendo a importação de tipo
+  Tailwind não utilizado, que não estava declarado nas dependências.
+- 16/10/2026 - Inicializada configuração local do Supabase CLI e criado
+  snapshot baseline versionado. Nenhuma alteração remota foi executada:
+  os backups ainda precisam ser confirmados e o estado remoto reconciliado.
+- 16/10/2026 - Migration local restringe usuarios_gerenciados a leitura pelo
+  app e reserva as mutações para Edge Functions/API server-side. O bloqueio
+  ainda não foi aplicado ao Supabase remoto.
+- 16/10/2026 - Backup manual de roles, schema e dados confirmado. Comparação
+  estrutural identificou grants/policies de escrita direta para
+  usuarios_gerenciados no banco remoto. A migration foi validada em Postgres
+  local; baseline reconciliado e migration incremental aplicada.
+- 16/10/2026 - Confirmado PostgreSQL 17.11, migration history alinhado e
+  privilegios/policy remotos verificados: authenticated tem apenas SELECT em
+  usuarios_gerenciados. As operacoes de escrita exigem API/Edge Function.
+- 16/10/2026 - Atualizado o status apos confirmar backups, aplicar migrations
+  nos dois bancos e validar builds/testes. Registrada como bloqueio de projeto
+  a decisao de autenticacao server-to-server entre os projetos independentes;
+  nenhuma chave privilegiada foi adicionada ao cliente.
+- 16/10/2026 - Aprovado o modelo M2M com assinatura RSA. Implementacao local
+  das Edge Functions para convite, aprovacao, bloqueio/desbloqueio, setor e
+  redefinicao de senha iniciada; migration de perfis ativos e anti-replay
+  pendente de testes e deploy autorizado.
+- 16/10/2026 - Adicionada migration local de limite persistente de 10
+  operacoes administrativas por usuario a cada 60 segundos. Testada em
+  PostgreSQL 17.11 descartavel e aplicada ao Supabase local; nao aplicada ao
+  projeto remoto. A Edge Function foi servida localmente e rejeitou chamada
+  sem autenticacao com HTTP 401.
+- 16/10/2026 - Aprovacao, mudanca de setor e bloqueio/desbloqueio passaram a
+  salvar estado e auditoria na mesma transacao local. Testes de retry sem
+  auditoria duplicada e rollback quando a auditoria falha passaram no banco
+  local PostgreSQL 17.11; migration nao aplicada remotamente.
+- 17/10/2026 - Login administrativo agora encaminha para cadastro/verificacao
+  TOTP; as paginas administrativas exigem AAL2 e a Edge Function verifica
+  claims JWT assinados antes de aceitar operacoes. Build de producao validado.
+- 17/10/2026 - Headers X-Content-Type-Options, X-Frame-Options,
+  Referrer-Policy, Permissions-Policy e HSTS foram conferidos em resposta
+  HTTP local. MFA/Auth real, Edge Function em runtime, CORS, revogacao e
+  operacao em staging continuam sem validacao; nada foi publicado remotamente.

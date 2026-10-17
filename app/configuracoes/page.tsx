@@ -12,7 +12,7 @@ export default function SettingsPage() {
       try {
         const result = await requireAdmin();
         if (!result.authorized) {
-          window.location.replace('/login');
+          window.location.replace(result.mfaRequired ? '/mfa' : '/login');
           return;
         }
         setAuthorized(true);

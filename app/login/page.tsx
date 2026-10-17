@@ -22,18 +22,27 @@ export default function LoginPage() {
         setError('Credenciais inválidas ou acesso administrativo não autorizado.');
         return;
       }
-      const { data: authData, error: administratorError } = await supabase
-        .from('administradores')
-        .select('id')
-        .eq('id', (await supabase.auth.getUser()).data.user?.id ?? '')
-        .eq('ativo', true)
-        .maybeSingle();
-      if (administratorError || !authData) {
+      const { data: authData, error: userError } = await supabase.auth.getUser();
+      if (userError || !authData.user) {
         await supabase.auth.signOut();
         setError('Credenciais inválidas ou acesso administrativo não autorizado.');
         return;
       }
-      router.replace('/usuarios');
+      const { data: administrator, error: administratorError } = await supabase
+        .from('administradores')
+        .select('id')
+        .eq('id', authData.user.id)
+        .eq('ativo', true)
+        .maybeSingle();
+      if (administratorError || !administrator) {
+        await supabase.auth.signOut();
+        setError('Credenciais inválidas ou acesso administrativo não autorizado.');
+        return;
+      }
+      const { data: assurance, error: assuranceError } =
+        await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (assuranceError) throw assuranceError;
+      router.replace(assurance.currentLevel === 'aal2' ? '/usuarios' : '/mfa');
     } catch (caughtError) {
       console.error('Falha no login administrativo:', caughtError);
       setError('Não foi possível iniciar a sessão.');

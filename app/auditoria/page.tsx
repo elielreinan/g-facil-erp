@@ -12,9 +12,9 @@ export default function AuditPage() {
   useEffect(() => {
     async function loadAudit() {
       try {
-        const { supabase, authorized } = await requireAdmin();
+        const { supabase, authorized, mfaRequired } = await requireAdmin();
         if (!authorized) {
-          window.location.replace('/login');
+          window.location.replace(mfaRequired ? '/mfa' : '/login');
           return;
         }
         const { data, error: queryError } = await supabase
