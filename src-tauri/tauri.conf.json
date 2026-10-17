@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "GFacilERP",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "identifier": "br.com.facilitas.gfacilerp",
   "build": {
     "frontendDist": "../out",
