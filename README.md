@@ -20,3 +20,32 @@ aprovações, setores e auditoria.
 npm install
 npm run dev
 ```
+
+## Testes
+
+```powershell
+npm test
+```
+
+Os testes unitarios cobrem assinatura/verificacao M2M e rejeicao de tokens
+alterados ou malformados. Eles nao substituem a validacao integrada em staging.
+
+## Aplicativo desktop para Windows
+
+O GFacilERP pode ser empacotado como instalador NSIS localmente:
+
+```powershell
+npm ci
+npm run tauri:dev
+npm run tauri:build
+```
+
+Ao executar os dois aplicativos em desenvolvimento ao mesmo tempo, FacilERP
+usa `localhost:3000` e GFacilERP `localhost:3001`.
+
+O instalador fica em `src-tauri/target/release/bundle/nsis/`. O build desktop
+gera uma exportacao estatica local, sem publicar o aplicativo na web. As
+variaveis `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` sao
+incorporadas ao instalador e devem apontar para o projeto GFacilERP. O
+aplicativo precisa de internet para acessar Auth, banco e Edge Functions do
+Supabase; nao inclui banco local nem funciona offline.

@@ -102,18 +102,22 @@ export async function verifyM2MToken(
     return null;
   }
 
-  const key = await crypto.subtle.importKey(
-    'spki',
-    toArrayBuffer(decodeKey(publicKeyBase64)),
-    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-    false,
-    ['verify'],
-  );
-  const valid = await crypto.subtle.verify(
-    'RSASSA-PKCS1-v1_5',
-    key,
-    toArrayBuffer(signature),
-    new TextEncoder().encode(`${parts[0]}.${parts[1]}`),
-  );
-  return valid ? (parsed as M2MClaims) : null;
+  try {
+    const key = await crypto.subtle.importKey(
+      'spki',
+      toArrayBuffer(decodeKey(publicKeyBase64)),
+      { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+      false,
+      ['verify'],
+    );
+    const valid = await crypto.subtle.verify(
+      'RSASSA-PKCS1-v1_5',
+      key,
+      toArrayBuffer(signature),
+      encoder.encode(`${parts[0]}.${parts[1]}`),
+    );
+    return valid ? (parsed as M2MClaims) : null;
+  } catch {
+    return null;
+  }
 }

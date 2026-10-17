@@ -1,0 +1,16 @@
+[package]
+name = "gfacilerp"
+version = "0.1.0"
+description = "GFacilERP desktop application"
+authors = ["FacilERP"]
+edition = "2021"
+
+[lib]
+name = "gfacilerp_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.0.3", features = [] }
+
+[dependencies]
+tauri = { version = "2.0.6", features = [] }
