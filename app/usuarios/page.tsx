@@ -1,7 +1,8 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { requireAdmin } from '../../lib/admin-access';
+import { SignOutButton } from '../../components/sign-out-button';
 
 type Sector = 'suprimentos' | 'orcamentos' | 'ti' | 'diretoria';
 type ManagedUser = {
@@ -25,6 +26,13 @@ const sectors: Array<{ value: Sector; label: string }> = [
   { value: 'diretoria', label: 'Diretoria' },
 ];
 
+function isOperationInProgress(value: unknown): boolean {
+  return typeof value === 'object' &&
+    value !== null &&
+    'error' in value &&
+    value.error === 'operation_in_progress';
+}
+
 export default function UsersPage() {
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [sectorDrafts, setSectorDrafts] = useState<Record<string, Sector>>({});
@@ -34,6 +42,7 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [busyUserId, setBusyUserId] = useState('');
+  const idempotencyKeys = useRef(new Map<string, string>());
 
   async function loadUsers() {
     try {
@@ -67,10 +76,30 @@ export default function UsersPage() {
       window.location.replace(mfaRequired ? '/mfa' : '/login');
       throw new Error('A sessão administrativa expirou.');
     }
+    const actionKey = JSON.stringify(action);
+    let idempotencyKey = idempotencyKeys.current.get(actionKey);
+    if (!idempotencyKey) {
+      idempotencyKey = crypto.randomUUID();
+      idempotencyKeys.current.set(actionKey, idempotencyKey);
+    }
     const { error: functionError } = await supabase.functions.invoke('manage-managed-user', {
-      body: action,
+      body: { ...action, idempotency_key: idempotencyKey },
     });
-    if (functionError) throw functionError;
+    if (functionError) {
+      let retrySameKey = false;
+      if (functionError.context instanceof Response) {
+        retrySameKey = functionError.context.status === 429;
+        if (functionError.context.status === 409) {
+          const responseBody: unknown = await functionError.context.clone().json().catch(() => null);
+          retrySameKey = isOperationInProgress(responseBody);
+        }
+      }
+      if (!retrySameKey && functionError.context instanceof Response) {
+        idempotencyKeys.current.delete(actionKey);
+      }
+      throw functionError;
+    }
+    idempotencyKeys.current.delete(actionKey);
   }
 
   async function createUser(event: FormEvent<HTMLFormElement>) {
@@ -144,7 +173,7 @@ export default function UsersPage() {
             <small>Administração</small>
             <h1>Usuários do FacilERP</h1>
           </div>
-          <span>Ambiente protegido</span>
+          <div className="topbar-actions"><span>Ambiente protegido</span><SignOutButton /></div>
         </header>
         <main className="main">
           <section className="card">

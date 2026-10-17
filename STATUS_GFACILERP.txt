@@ -86,12 +86,15 @@ PENDENCIAS PRIORITARIAS
   retorna para a tela segura de definicao de senha do FacilERP.
 - Nao colocar service_role nem qualquer segredo no cliente. O modelo M2M foi
   aprovado; a configuracao de credenciais server-side ainda nao foi feita.
-- MFA TOTP e gate AAL2 foram implementados localmente no cliente e na Edge
-  Function. Falta validar enrollment/Auth e revogacao de sessoes em staging.
+- MFA TOTP e gate AAL2 foram implementados no cliente e na Edge Function. O
+  enrollment e a verificacao Auth real passaram na stack local; staging e
+  revogacao de sessoes em ambiente remoto continuam pendentes.
 - Headers de seguranca foram adicionados ao Next.js e verificados em resposta
   HTTP local; revisar CORS e validar em staging.
-- Adicionar chave de idempotencia para repeticoes de criacao e solicitacao de
-  redefinicao de senha.
+- A chave de idempotencia para operacoes administrativas foi implementada na
+  Edge Function e na interface; migration e teste SQL transacional passaram em
+  PostgreSQL 17.11 descartavel. A migration ainda nao foi aplicada ao Supabase
+  local ou remoto, e o fluxo completo precisa de validacao em staging.
 - Revisar CORS, headers, tratamento de erros e minimizacao de dados pessoais.
 - O Storage privado do FacilERP ja esta implementado localmente; preparar
   backup dos objetos e validar as policies em staging. Dumps SQL nao incluem
@@ -201,3 +204,18 @@ HISTORICO DE MUDANCAS
   Referrer-Policy, Permissions-Policy e HSTS foram conferidos em resposta
   HTTP local. MFA/Auth real, Edge Function em runtime, CORS, revogacao e
   operacao em staging continuam sem validacao; nada foi publicado remotamente.
+
+- 17/10/2026 - TOTP foi habilitado no `config.toml` local. Teste integrado no
+  Auth local passou por login AAL1, enrollment, challenge, verificacao AAL2 e
+  revogacao global de refresh tokens em outra sessao. Politica local de senha
+  agora exige 12-128 caracteres com minúscula, maiúscula, número e símbolo;
+  credencial curta foi rejeitada no servidor. Login, AAL2 e revogacao em
+  staging continuam obrigatorios antes de produção.
+- 17/10/2026 - Idempotencia administrativa adicionada ao endpoint e a tela de
+  usuarios: chaves UUID por operacao, deteccao de reuso com payload diferente,
+  bloqueio de concorrencia e replay de resposta. Migration/teste SQL passaram
+  em PostgreSQL 17.11 descartavel; as duas Edge Functions passaram no Deno
+  type-check e assinatura/verificacao M2M cruzada rejeitou assinatura
+  adulterada. Build GFacilERP passou. Nada foi aplicado ao Supabase
+  local/remoto; execucao das functions com servicos reais e teste ponta a
+  ponta continuam pendentes.

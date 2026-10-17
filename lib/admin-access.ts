@@ -4,7 +4,8 @@ export async function requireAdmin() {
   const supabase = getSupabaseClient();
   const { data: authData, error: authError } = await supabase.auth.getUser();
 
-  if (authError || !authData.user) {
+  if (authError) throw authError;
+  if (!authData.user) {
     return { supabase, user: null, authorized: false, mfaRequired: false };
   }
 

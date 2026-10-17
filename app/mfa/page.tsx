@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSupabaseClient } from '../../lib/supabase';
+import { SignOutButton } from '../../components/sign-out-button';
 
 type TotpFactor = { id: string; status: string; friendly_name?: string };
 
@@ -143,6 +144,9 @@ export default function MfaPage() {
       if (assurance.currentLevel !== 'aal2') {
         throw new Error('The session did not reach the required assurance level.');
       }
+      setQrCode('');
+      setSecret('');
+      setCode('');
       router.replace('/usuarios');
     } catch (caughtError) {
       console.error('Falha ao verificar MFA:', caughtError);
@@ -159,6 +163,7 @@ export default function MfaPage() {
         <p className="brand">GFACILERP</p>
         <h1 id="mfa-title">Autenticação multifator</h1>
         <p>O acesso administrativo exige uma verificação por aplicativo autenticador.</p>
+        <div className="mfa-session-action"><SignOutButton /></div>
         {loading ? <p role="status">Validando sessão e fatores...</p> : (
           <>
             {error && <p className="alert error" role="alert">{error}</p>}

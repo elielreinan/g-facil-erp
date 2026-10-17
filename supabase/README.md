@@ -3,8 +3,9 @@
 Este projeto Supabase e separado do FacilERP. A configuracao local da CLI esta
 em `config.toml`; as migrations registram o baseline e a restricao das
 mutacoes diretas de usuarios gerenciados. Uma migration local adicional
-implementa rate limit persistente e outra torna atomicos os estados e a
-auditoria das operacoes administrativas.
+implementa rate limit persistente, outra torna atomicos os estados e a
+auditoria, e uma migration de idempotencia protege repeticoes das operacoes
+administrativas.
 
 ## Estado remoto em 16/10/2026
 
@@ -33,7 +34,10 @@ chave privilegiada vai ao navegador, Git ou chat. A aprovacao, o bloqueio/
 desbloqueio e a mudanca de setor atualizam o estado gerenciado e gravam a
 auditoria em uma unica transacao no GFacilERP.
 
-Storage de anexos e backup de objetos binarios tambem permanecem pendentes.
+O Storage privado de anexos e os scripts locais de backup/restauracao de
+objetos binarios foram implementados e verificados no FacilERP. O backup dos
+objetos dos ambientes remotos e a validacao/restauracao em staging continuam
+pendentes; dumps SQL nao incluem esses arquivos.
 
 ## Implementacao M2M local
 
@@ -88,14 +92,37 @@ habilitar o fluxo:
   secret no projeto correto; nao compartilhar o valor em chat;
 - configurar a URL de redirecionamento de convite/recuperacao e o SMTP do
   projeto FacilERP;
+- exigir TOTP para administradores e aplicar a politica de senha de 12
+  caracteres com classes requeridas nos projetos remotos, após revisar o
+  impacto para contas existentes;
 - aplicar primeiro a migration do FacilERP em staging e repetir a verificacao
   de que `ativo = false` bloqueia as policies;
 - completar testes negativos em staging para nao-admin, expiracao, falha
   parcial, duplicidade e limite de taxa;
-- criar chave de idempotencia para repeticoes de solicitacao de redefinicao de
-  senha e criar usuario;
-- adicionar MFA administrativo e testar revogacao de sessoes bloqueadas
-  antes de uso amplo em producao.
+- validar em staging a chave de idempotencia para operacoes de criacao,
+  aprovacao, alteracao de setor/status e redefinicao. A migration
+  `20261017010000_admin_operation_idempotency.sql` e as assertions
+  `supabase/tests/admin_idempotency.sql` passaram em PostgreSQL 17.11
+  descartavel, mas ainda nao foram aplicadas ao Supabase local ou remoto;
+- repetir enrollment TOTP, gate AAL2, revogacao global e bloqueio de
+  administradores inativos em staging antes de uso amplo em producao.
+
+TOTP esta habilitado somente na configuracao local (`auth.mfa.totp`) e foi
+exercitado contra o Auth real local: senha curta rejeitada, enrollment,
+challenge/verificacao em AAL2 e revogacao de refresh tokens de outra sessao.
+O FacilERP local validou envio do e-mail de recuperacao pelo Mailpit, retorno a
+`/redefinir-senha` e troca de senha. As configuracoes remotas, SMTP e
+validacao operacional ainda nao foram alterados nem exercitados.
+
+A idempotencia administrativa calcula hash apenas do payload validado,
+reserva a chave por administrador, rejeita reuso com payload diferente,
+bloqueia operacoes simultaneas e persiste status/corpo da resposta para replay.
+A interface mantem a mesma chave em falhas de transporte, limite de taxa e
+operacoes ainda em andamento. A migration e o teste foram executados em um
+PostgreSQL 17.11 descartavel com rollback; nenhum banco Supabase foi alterado.
+As duas Edge Functions passaram no Deno type-check e o teste cruzado M2M entre
+emissor e receptor aceitou uma assinatura valida e rejeitou uma adulterada.
+O fluxo completo com Auth/servicos locais e staging ainda precisa ser exercitado.
 
 Nao use `db reset` em projetos remotos. Nao coloque senha do banco ou chaves
 secret/service_role em variaveis `NEXT_PUBLIC_*`, no frontend ou no Git.

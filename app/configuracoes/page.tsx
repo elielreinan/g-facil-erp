@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { requireAdmin } from '../../lib/admin-access';
+import { SignOutButton } from '../../components/sign-out-button';
 
 export default function SettingsPage() {
   const [authorized, setAuthorized] = useState(false);
@@ -24,5 +25,5 @@ export default function SettingsPage() {
     void checkAccess();
   }, []);
 
-  return <div className="layout"><aside className="sidebar"><p className="brand">GFACILERP</p><p className="brand-subtitle">Gestão de acessos</p><nav className="nav"><a href="/usuarios">Usuários</a><a href="/auditoria">Auditoria</a><a className="active" href="/configuracoes">Configurações</a></nav></aside><div className="content"><header className="topbar"><div><small>Administração</small><h1>Configurações</h1></div><span>Ambiente protegido</span></header><main className="main"><section className="card"><h2>Políticas administrativas</h2><p>As alterações sensíveis devem ser realizadas por API server-side com MFA, autorização, rate limit e auditoria.</p>{error && <p className="alert error" role="alert">{error}</p>}{authorized && <p className="alert success" role="status">Acesso administrativo validado.</p>}</section></main></div></div>;
+  return <div className="layout"><aside className="sidebar"><p className="brand">GFACILERP</p><p className="brand-subtitle">Gestão de acessos</p><nav className="nav"><a href="/usuarios">Usuários</a><a href="/auditoria">Auditoria</a><a className="active" href="/configuracoes">Configurações</a></nav></aside><div className="content"><header className="topbar"><div><small>Administração</small><h1>Configurações</h1></div><div className="topbar-actions"><span>Ambiente protegido</span><SignOutButton /></div></header><main className="main"><section className="card"><h2>Políticas administrativas</h2><p>As alterações sensíveis devem ser realizadas por API server-side com MFA, autorização, rate limit e auditoria.</p>{error && <p className="alert error" role="alert">{error}</p>}{authorized && <p className="alert success" role="status">Acesso administrativo validado.</p>}<div className="settings-section"><h3>Sessões</h3><p>Encerra os refresh tokens e sessões deste administrador em todos os dispositivos.</p><SignOutButton global /></div></section></main></div></div>;
 }

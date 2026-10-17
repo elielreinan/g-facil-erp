@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { requireAdmin } from '../../lib/admin-access';
+import { SignOutButton } from '../../components/sign-out-button';
 
 type AuditEvent = { id: string; acao: string; detalhes: Record<string, unknown>; criado_em: string };
 
@@ -31,5 +32,5 @@ export default function AuditPage() {
     void loadAudit();
   }, []);
 
-  return <div className="layout"><aside className="sidebar"><p className="brand">GFACILERP</p><p className="brand-subtitle">Gestão de acessos</p><nav className="nav"><a href="/usuarios">Usuários</a><a className="active" href="/auditoria">Auditoria</a><a href="/configuracoes">Configurações</a></nav></aside><div className="content"><header className="topbar"><div><small>Administração</small><h1>Auditoria administrativa</h1></div><span>Ambiente protegido</span></header><main className="main"><section className="card"><h2>Eventos registrados</h2><p>Eventos persistidos no banco separado do GFacilERP.</p>{error && <p className="alert error" role="alert">{error}</p>}{events.length === 0 ? <p className="empty">Nenhum evento registrado.</p> : <div className="table-wrap"><table><thead><tr><th>Ação</th><th>Detalhes</th><th>Data</th></tr></thead><tbody>{events.map((event) => <tr key={event.id}><td>{event.acao}</td><td>{JSON.stringify(event.detalhes)}</td><td>{new Date(event.criado_em).toLocaleString('pt-BR')}</td></tr>)}</tbody></table></div>}</section></main></div></div>;
+  return <div className="layout"><aside className="sidebar"><p className="brand">GFACILERP</p><p className="brand-subtitle">Gestão de acessos</p><nav className="nav"><a href="/usuarios">Usuários</a><a className="active" href="/auditoria">Auditoria</a><a href="/configuracoes">Configurações</a></nav></aside><div className="content"><header className="topbar"><div><small>Administração</small><h1>Auditoria administrativa</h1></div><div className="topbar-actions"><span>Ambiente protegido</span><SignOutButton /></div></header><main className="main"><section className="card"><h2>Eventos registrados</h2><p>Eventos persistidos no banco separado do GFacilERP.</p>{error && <p className="alert error" role="alert">{error}</p>}{events.length === 0 ? <p className="empty">Nenhum evento registrado.</p> : <div className="table-wrap"><table><thead><tr><th>Ação</th><th>Detalhes</th><th>Data</th></tr></thead><tbody>{events.map((event) => <tr key={event.id}><td>{event.acao}</td><td>{JSON.stringify(event.detalhes)}</td><td>{new Date(event.criado_em).toLocaleString('pt-BR')}</td></tr>)}</tbody></table></div>}</section></main></div></div>;
 }
