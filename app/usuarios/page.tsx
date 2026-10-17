@@ -11,12 +11,10 @@ type ManagedUser = {
   email: string;
   setor: Sector;
   status: 'pendente' | 'aprovado' | 'bloqueado';
-  auth_user_id: string | null;
   criado_em: string;
 };
 type ManagementAction =
-  { action: 'approve'; user_id: string }
-  | { action: 'set_status'; user_id: string; status: 'aprovado' | 'bloqueado' }
+  { action: 'set_status'; user_id: string; status: 'aprovado' | 'bloqueado' }
   | { action: 'set_sector'; user_id: string; setor: Sector };
 
 const sectors: Array<{ value: Sector; label: string }> = [
@@ -52,7 +50,7 @@ export default function UsersPage() {
       }
       const { data, error: queryError } = await supabase
         .from('usuarios_gerenciados')
-        .select('id,nome,email,setor,status,auth_user_id,criado_em')
+        .select('id,nome,email,setor,status,criado_em')
         .order('nome');
       if (queryError) throw queryError;
       setUsers((data ?? []) as ManagedUser[]);
@@ -222,22 +220,7 @@ export default function UsersPage() {
                         </td>
                         <td>
                           <div className="toolbar">
-                            {user.status === 'pendente' && <span>{user.auth_user_id ? 'Aguardando aprovação' : 'Convite pendente de envio'}</span>}
-                            {user.status === 'pendente' && user.auth_user_id && (
-                              <button
-                                className="button"
-                                disabled={busy}
-                                onClick={() => void runUserAction(
-                                  user,
-                                  { action: 'approve', user_id: user.id },
-                                  `Aprovar o acesso de ${user.email}?`,
-                                  'Acesso aprovado.',
-                                )}
-                                type="button"
-                              >
-                                Aprovar
-                              </button>
-                            )}
+                            {user.status === 'pendente' && <span>Aprovação indisponível sem convite por e-mail</span>}
                             {user.status === 'aprovado' && (
                               <>
                                 <button
