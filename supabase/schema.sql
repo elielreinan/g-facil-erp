@@ -97,21 +97,25 @@ begin
     raise exception 'managed user not found' using errcode = 'P0002';
   end if;
 
-  if p_operation = 'approve' then
+  if p_operation in ('approve', 'create') then
     if managed_user.status = 'aprovado'
       and managed_user.auth_user_id = p_auth_user_id then
       return;
     end if;
     if managed_user.status <> 'pendente'
       or managed_user.auth_user_id is not null
-      or p_auth_user_id is null then
+      or p_auth_user_id is null
+      or (p_operation = 'create' and p_status is distinct from 'aprovado') then
       raise exception 'managed user state conflict' using errcode = '40001';
     end if;
     update public.usuarios_gerenciados
       set auth_user_id = p_auth_user_id, status = 'aprovado'
       where id = p_user_id;
-    audit_action := 'aprovou';
-    audit_details := jsonb_build_object('setor', managed_user.setor);
+    audit_action := case when p_operation = 'create' then 'criou' else 'aprovou' end;
+    audit_details := jsonb_build_object(
+      'setor', managed_user.setor,
+      'credencial', case when p_operation = 'create' then 'senha_temporaria' else 'convite' end
+    );
   elsif p_operation = 'set_status' then
     if managed_user.auth_user_id is distinct from p_auth_user_id
       or p_status is null

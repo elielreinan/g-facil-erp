@@ -10,6 +10,9 @@ aprovações, setores e auditoria.
 - Criação de usuários Auth, alteração de senha e bloqueio devem ser feitos por
   Edge Functions ou API server-side com autorização administrativa, MFA,
   auditoria e rate limit.
+- O provisionamento por senha temporária exige senha forte, MFA AAL2,
+  idempotência, auditoria e troca obrigatória antes de acessar dados do
+  FacilERP. Nunca envie a senha temporária por e-mail aberto ou registre-a.
 - Consulte `supabase/README.md` antes de aplicar migrations. O baseline e para
   banco vazio; bancos existentes exigem backup, comparação de schema e
   reconciliação do histórico antes de qualquer `db push`.

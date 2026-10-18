@@ -3,6 +3,7 @@ node_modules/
 out/
 src-tauri/target/
 src-tauri/gen/
+*.tsbuildinfo
 .env
 .env.local
 .env.*

@@ -5,7 +5,7 @@
 project_id = "g-facil-erp"
 
 [functions.manage-managed-user]
-verify_jwt = true
+verify_jwt = false
 
 [api]
 enabled = true

@@ -1,12 +1,13 @@
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { sha256Hex, signM2MToken, type M2MClaims } from '../_shared/m2m.ts';
+import { isStrongPassword } from '../../../lib/password.ts';
 
 const PROJECT_ISSUER = 'gfacilerp:jqjvzypalurnhbkqlzpx';
 const AUDIENCE = 'facil-erp-account-management';
 const ALLOWED_SECTORS = new Set(['suprimentos', 'orcamentos', 'ti', 'diretoria']);
 
 type Action =
-  | { action: 'create'; nome: string; email: string; setor: string }
+  | { action: 'create'; nome: string; email: string; setor: string; password: string }
   | { action: 'approve'; user_id: string }
   | { action: 'reset'; user_id: string }
   | { action: 'set_status'; user_id: string; status: 'aprovado' | 'bloqueado' }
@@ -189,13 +190,16 @@ function parseManagementAction(value: unknown): Action | null {
       value.email.length > 254 ||
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.email.trim()) ||
       typeof value.setor !== 'string' ||
-      !ALLOWED_SECTORS.has(value.setor)
+      !ALLOWED_SECTORS.has(value.setor) ||
+      typeof value.password !== 'string' ||
+      !isStrongPassword(value.password)
     ) return null;
     return {
       action: 'create',
       nome: value.nome.trim(),
       email: value.email.trim().toLowerCase(),
       setor: value.setor,
+      password: value.password,
     };
   }
 
@@ -237,8 +241,23 @@ async function beginIdempotentRequest(
   administratorId: string,
   idempotencyKey: string,
   action: Action,
+  hashSecret: string,
 ): Promise<IdempotencyDecision> {
-  const requestHash = await sha256Hex(JSON.stringify(action));
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(hashSecret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const signature = await crypto.subtle.sign(
+    'HMAC',
+    key,
+    new TextEncoder().encode(JSON.stringify(action)),
+  );
+  const requestHash = Array.from(new Uint8Array(signature), (byte) =>
+    byte.toString(16).padStart(2, '0')
+  ).join('');
   const { data, error } = await client.rpc('begin_admin_idempotent_request', {
     p_administrator_id: administratorId,
     p_idempotency_key: idempotencyKey,
@@ -382,7 +401,7 @@ async function completeManagedUserOperation(
   client: AdminClient,
   administratorId: string,
   userId: string,
-  operation: 'invite' | 'approve' | 'reset' | 'set_status' | 'set_sector',
+  operation: 'create' | 'invite' | 'approve' | 'reset' | 'set_status' | 'set_sector',
   authUserId: string | null,
   status: 'aprovado' | 'bloqueado' | null = null,
   sector: string | null = null,
@@ -435,18 +454,33 @@ Deno.serve(async (request: Request) => {
     const anonKey = getEnv('SUPABASE_ANON_KEY');
     const serviceKey = getEnv('SUPABASE_SERVICE_ROLE_KEY');
     const userClient = createClient<Database>(projectUrl, anonKey, {
-      global: { headers: { authorization: `Bearer ${bearer}` } },
       auth: { autoRefreshToken: false, persistSession: false },
     });
     const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(bearer);
     if (claimsError || !claimsData?.claims?.sub) {
-      return jsonResponse(401, { error: 'unauthorized' }, corsHeaders);
+      console.error('Failed to verify GFacilERP bearer claims.', {
+        errorName: claimsError?.name ?? 'missing_subject',
+        errorCode: claimsError?.code,
+        status: claimsError?.status,
+      });
+      return jsonResponse(401, { error: 'invalid_token' }, corsHeaders);
     }
     if (claimsData.claims.aal !== 'aal2') {
       return jsonResponse(403, { error: 'mfa_required' }, corsHeaders);
     }
-    const { data: authData, error: authError } = await userClient.auth.getUser();
-    if (authError || !authData.user) return jsonResponse(401, { error: 'unauthorized' }, corsHeaders);
+    const { data: authData, error: authError } = await userClient.auth.getUser(bearer);
+    if (
+      authError ||
+      !authData.user ||
+      authData.user.id !== claimsData.claims.sub
+    ) {
+      console.error('Failed to resolve GFacilERP bearer user.', {
+        errorName: authError?.name ?? 'subject_mismatch',
+        errorCode: authError?.code,
+        status: authError?.status,
+      });
+      return jsonResponse(401, { error: 'invalid_token' }, corsHeaders);
+    }
 
     const adminClient = createClient<Database>(projectUrl, serviceKey, {
       auth: { autoRefreshToken: false, persistSession: false },
@@ -507,6 +541,7 @@ Deno.serve(async (request: Request) => {
         administrator.id,
         idempotencyKey,
         action,
+        serviceKey,
       );
       if (idempotency.outcome === 'conflict') {
         return jsonResponse(409, { error: 'idempotency_key_reused' }, corsHeaders);
@@ -565,23 +600,25 @@ Deno.serve(async (request: Request) => {
           }
 
           const result = await callFacilERP({
-            action: 'invite',
+            action: 'create',
             managed_user_id: user.id,
             nome: user.nome,
             email: user.email,
             setor: user.setor,
+            password: action.password,
           }, administrator.id);
           if (!result.ok || !result.authUserId) {
-            return await respond(502, { error: 'facil_erp_invitation_failed' });
+            return await respond(502, { error: 'facil_erp_account_creation_failed' });
           }
           await completeManagedUserOperation(
             adminClient,
             administrator.id,
             user.id,
-            'invite',
+            'create',
             result.authUserId,
+            'aprovado',
           );
-          return await respond(201, { user_id: user.id, status: 'pendente' });
+          return await respond(201, { user_id: user.id, status: 'aprovado' });
         }
 
         const user = await findManagedUser(adminClient, action.user_id);
@@ -641,6 +678,7 @@ Deno.serve(async (request: Request) => {
       administrator.id,
       idempotencyKey,
       action,
+      serviceKey,
     );
     if (idempotency.outcome === 'conflict') {
       return jsonResponse(409, { error: 'idempotency_key_reused' }, corsHeaders);
