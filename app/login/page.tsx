@@ -1,21 +1,36 @@
 'use client';
 
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import {
+  readRememberSessionPreference,
+  saveRememberSessionPreference,
+} from '../../lib/auth-session-preference';
 import { getSupabaseClient } from '../../lib/supabase';
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberSession, setRememberSession] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    try {
+      setRememberSession(readRememberSessionPreference(window.localStorage));
+    } catch (caughtError: unknown) {
+      console.error('Falha ao ler a preferência de sessão:', caughtError);
+      setError('Não foi possível carregar a preferência de sessão neste navegador.');
+    }
+  }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError('');
     setLoading(true);
     try {
+      saveRememberSessionPreference(rememberSession, window.localStorage);
       const supabase = getSupabaseClient();
       const { error: authError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
       if (authError) {
@@ -51,5 +66,54 @@ export default function LoginPage() {
     }
   }
 
-  return <main className="login-page"><section className="card login-card"><p className="brand">GFACILERP</p><h1>Gestão administrativa</h1><p>Controle seguro das contas do FacilERP.</p><form onSubmit={submit}><div className="field"><label htmlFor="email">E-mail</label><input autoComplete="username" id="email" maxLength={254} onChange={(event) => setEmail(event.target.value)} required type="email" value={email} /></div><div className="field"><label htmlFor="password">Senha</label><input autoComplete="current-password" id="password" maxLength={128} onChange={(event) => setPassword(event.target.value)} required type="password" value={password} /></div>{error && <p className="alert error" role="alert">{error}</p>}<button className="button" disabled={loading} type="submit">{loading ? 'Entrando...' : 'Entrar'}</button></form></section></main>;
+  return (
+    <main className="login-page">
+      <section className="card login-card">
+        <p className="brand">GFACILERP</p>
+        <h1>Gestão administrativa</h1>
+        <p>Controle seguro das contas do FacilERP.</p>
+        <form onSubmit={submit}>
+          <div className="field">
+            <label htmlFor="email">E-mail</label>
+            <input
+              autoComplete="username"
+              id="email"
+              maxLength={254}
+              onChange={(event) => setEmail(event.target.value)}
+              required
+              type="email"
+              value={email}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="password">Senha</label>
+            <input
+              autoComplete="current-password"
+              id="password"
+              maxLength={128}
+              onChange={(event) => setPassword(event.target.value)}
+              required
+              type="password"
+              value={password}
+            />
+          </div>
+          <label className="remember-session">
+            <input
+              checked={rememberSession}
+              onChange={(event) => setRememberSession(event.target.checked)}
+              type="checkbox"
+            />
+            Lembrar de mim neste dispositivo
+          </label>
+          <p className="-mt-3 text-xs text-slate-500">
+            Desmarque em computadores compartilhados; sem a opção, a sessão termina ao fechar o navegador ou app.
+          </p>
+          {error && <p className="alert error" role="alert">{error}</p>}
+          <button className="button" disabled={loading} type="submit">
+            {loading ? 'Entrando...' : 'Entrar'}
+          </button>
+        </form>
+      </section>
+    </main>
+  );
 }

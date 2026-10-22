@@ -13,6 +13,9 @@ aprovações, setores e auditoria.
 - O provisionamento por senha temporária exige senha forte, MFA AAL2,
   idempotência, auditoria e troca obrigatória antes de acessar dados do
   FacilERP. Nunca envie a senha temporária por e-mail aberto ou registre-a.
+- A opção "Lembrar de mim" mantém a sessão após fechar o navegador/app;
+  desmarque-a em computadores compartilhados. Sem ela, o cookie é temporário.
+  A preferência não armazena a senha.
 - Consulte `supabase/README.md` antes de aplicar migrations. O baseline e para
   banco vazio; bancos existentes exigem backup, comparação de schema e
   reconciliação do histórico antes de qualquer `db push`.
